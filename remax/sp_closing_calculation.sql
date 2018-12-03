@@ -37,8 +37,18 @@ BEGIN
 	DECLARE listOwner INTEGER;
 	DECLARE sisaSelling DOUBLE;
 	DECLARE sisaListing DOUBLE;
+	
+	DECLARE sisaMaSelling DOUBLE;
+	DECLARE sisaMaListing DOUBLE;
+	
+	
 	DECLARE feeHOList DOUBLE DEFAULT 0;
 	DECLARE feeHOSell DOUBLE DEFAULT 0;
+	
+	
+	DECLARE feeMAList DOUBLE DEFAULT 0;
+	DECLARE feeMASell DOUBLE DEFAULT 0;
+	
 	DECLARE tipe VARCHAR(20);
 	DECLARE closingId INTEGER;
 	
@@ -126,7 +136,7 @@ BEGIN
 	INSERT INTO calculation (cclhCode, cclhMmbsId, cclhFrofId, cclhDate, cclhListId, cclhCreatedTime, cclhCustId, cclhPrice)
 	VALUES (CONCAT('CLS', officenumber, totalnumber), agentId, sellFranchiseId, NOW(), listingId, NOW(), customerId, listingPrice);
 
-SELECT cclhId FROM calculation WHERE cclhListId = listingId ORDER BY cclhId DESC LIMIT 1 INTO closingId;
+	SELECT cclhId FROM calculation WHERE cclhListId = listingId ORDER BY cclhId DESC LIMIT 1 INTO closingId;
   
 	INSERT INTO calculation_detail(ccldCclhId, ccldName, ccldValue, ccldMinus, ccldFromApi, ccldSequence, ccldCreatedTime) 
 	VALUES (closingId, 'Harga Transaksi', listingPrice, 0, 'api/franchisefee', seq, NOW());
@@ -170,16 +180,30 @@ SELECT cclhId FROM calculation WHERE cclhListId = listingId ORDER BY cclhId DESC
 		END IF;
 	END IF;
 
+	
+
+	
+	
 	SET seq = seq + 1;
 	SET comm = ( listingPrice * listAggPercentage/100) + listAggMoneter;
 	INSERT INTO calculation_detail(ccldSisi,ccldCclhId, ccldName, ccldValue, ccldMinus, ccldFromApi, ccldSequence, ccldCreatedTime) 
 	VALUES ("KT", closingId, 'Komisi Transaksi', comm, 0, 'api/franchisefee', seq, NOW());
 
-		SELECT COUNT(mmagId) FROM member_aggrement WHERE mmagListId = listingId INTO cek;	
-		IF cek = 0 AND agentId = listOwner THEN	
+		SELECT COUNT(mmagId) FROM member_aggrement WHERE mmagListId = listingId INTO cek;
+
+
+		
+		IF cek = 0 AND agentId = listOwner THEN 
 			BLOCK14: BEGIN
 				DECLARE mmListingValue DOUBLE DEFAULT 0; 
 				DECLARE mmSellingValue DOUBLE DEFAULT 0; 
+				
+				/* START TAMBAH MA OFF FEE */
+				DECLARE maListingValue DOUBLE DEFAULT 0; 
+				DECLARE maSellingValue DOUBLE DEFAULT 0; 
+				/* END TAMBAH MA OFF FEE */
+				
+				
 				DECLARE headId INTEGER;
 				DECLARE headName VARCHAR(100);
 				DECLARE i INTEGER DEFAULT 0;
@@ -189,37 +213,80 @@ SELECT cclhId FROM calculation WHERE cclhListId = listingId ORDER BY cclhId DESC
 				SET mmListingValue = ( comm * 50/100);
 				SET mmSellingValue = ( comm * 50/100);
 
+				
+
 				CALL `sp_refferal_commission`(closingId, listingId, mmSellingValue, mmListingValue, customerId, seq);
+				
+				
+				/* START TAMBAH MA OFF FEE */
+				SET maListingValue = mmListingValue; 
+				SET maSellingValue = mmSellingValue;
+				/* END TAMBAH MA OFF FEE */
+				
 
 				CALL `sp_office_fee_calculation`(closingId, listingId, listFranchiseId, mmListingValue, feeHOList, 'Listing', hirarki, seq);
+				/*
 				INSERT INTO member_comm(mmcoListId, mmcoAgtyId, mmcoMmbsId, mmcoPercentage, mmcoMoneter,mmcoSequence,mmcoValue)
 				VALUES(listingId, 1, agentId, 50, 0, 1, mmListingValue);
-
+				*/
 				CALL `sp_office_fee_calculation`(closingId, listingId, sellFranchiseId, mmSellingValue, feeHOSell, 'Selling', hirarki, seq);
+				/*
 				INSERT INTO member_comm(mmcoListId, mmcoAgtyId, mmcoMmbsId, mmcoPercentage, mmcoMoneter,mmcoSequence,mmcoValue)
 				VALUES(listingId, 1, agentId, 50, 0, 1, mmSellingValue);
-				             
+				*/
+				
+
+				/* START TAMBAH MA OFF FEE */
+				CALL `sp_membership_franchise_fee_calculation`(agentId, closingId, listingId, listFranchiseId, maListingValue, feeMAList, 'Listing', hirarki, seq);
+				INSERT INTO member_comm(mmcoListId, mmcoAgtyId, mmcoMmbsId, mmcoPercentage, mmcoMoneter,mmcoSequence,mmcoValue)
+				VALUES(listingId, 1, agentId, 50, 0, 1, maListingValue);
+
+				CALL `sp_membership_franchise_fee_calculation`(agentId, closingId, listingId, sellFranchiseId, maSellingValue, feeMASell, 'Selling', hirarki, seq);
+				INSERT INTO member_comm(mmcoListId, mmcoAgtyId, mmcoMmbsId, mmcoPercentage, mmcoMoneter,mmcoSequence,mmcoValue)
+				VALUES(listingId, 1, agentId, 50, 0, 1, maSellingValue);
+				
+				/* END TAMBAH MA OFF FEE */
+
+
+
 				
 				SELECT frofCompId FROM franchise_office WHERE frofId = listFranchiseId INTO headId;
 				SELECT compName FROM company WHERE compId = headId INTO headName; 	
 				
+				/*	SEBELUM FEE MA OFFICE
 				SET sisaSelling = mmSellingValue;
 				SET sisaListing = mmListingValue;
+				*/
 
 				SET seq = seq + 1;
 					
 				INSERT INTO calculation_detail(ccldSisi, ccldHO, ccldCclhId, ccldName, ccldValue, ccldMinus, ccldFromApi, ccldSequence, ccldCreatedTime) 
 				VALUES ("Pay", headId, closingId, CONCAT('Payable to ',headName), ABS(feeHOSell+feeHOList), 2, 'api/franchisefee', seq, NOW());
+				
+				/* START TAMBAH MA OFF FEE */
+				
+				
+				SET sisaSelling = maSellingValue;
+				SET sisaListing = maListingValue;
+				
+				
+				INSERT INTO calculation_detail(ccldSisi, ccldFO, ccldCclhId, ccldName, ccldValue, ccldMinus, ccldFromApi, ccldSequence, ccldCreatedTime) 
+				VALUES ("Office", listFranchiseId, closingId, CONCAT('Payable to Listing Office'), ABS(feeMAList), 3, '', seq, NOW());
 
+				INSERT INTO calculation_detail(ccldSisi, ccldFO, ccldCclhId, ccldName, ccldValue, ccldMinus, ccldFromApi, ccldSequence, ccldCreatedTime) 
+				VALUES ("Office", sellFranchiseId, closingId, CONCAT('Payable to Selling Office'), ABS(feeMASell), 3, '', seq, NOW());
+				/* END TAMBAH MA OFF FEE */
+				
 			END BLOCK14;	
 			
 			SET seq = seq + 1;
-					
+			
+		
 			INSERT INTO calculation_detail(ccldSisi, ccldFO, ccldCclhId, ccldName, ccldValue, ccldMinus, ccldFromApi, ccldSequence, ccldCreatedTime) 
 			VALUES ("Komisi", listFranchiseId, closingId, CONCAT('Komisi yang diperhitungkan'), sisaListing+sisaSelling, 0,'api/franchisefee', seq, NOW());
-			
+		
 		ELSE
-				
+
 			BLOCK3: BEGIN
 				DECLARE mmId1 INTEGER;
 				DECLARE mmId2 INTEGER;
@@ -229,6 +296,14 @@ SELECT cclhId FROM calculation WHERE cclhListId = listingId ORDER BY cclhId DESC
 				DECLARE mmMoneter2 DOUBLE;
 				DECLARE mmListingValue DOUBLE DEFAULT 0; 
 				DECLARE mmSellingValue DOUBLE DEFAULT 0; 
+				
+				/* START TAMBAH MA OFF FEE */
+				DECLARE maListingValue DOUBLE DEFAULT 0; 
+				DECLARE maSellingValue DOUBLE DEFAULT 0; 
+				/* END TAMBAH MA OFF FEE */
+				
+				
+				
 				
 				DECLARE headId INTEGER;
 				DECLARE headName VARCHAR(100);
@@ -278,22 +353,47 @@ SELECT cclhId FROM calculation WHERE cclhListId = listingId ORDER BY cclhId DESC
 				/*
 					CALL `sp_refferal_commission`(closingId, listingId, mmSellingValue, mmListingValue, customerId, seq);
 				*/
+				
 				/*
 					TAMBAH
 				*/
 				SELECT COUNT(*) FROM `member_aggrement_detail` WHERE `madlListId` = listingId INTO multiCobrokingStatus;
+				
+				
+				
+				/* START TAMBAH MA OFF FEE */
+				SET maListingValue = mmListingValue; 
+				SET maSellingValue = mmSellingValue;
+				/* END TAMBAH MA OFF FEE */
 				
 				IF multiCobrokingStatus = 0 THEN
 					
 					CALL `sp_refferal_commission`(closingId, listingId, mmSellingValue, mmListingValue, customerId, seq);
 				
 					CALL `sp_office_fee_calculation`(closingId, listingId, listFranchiseId, mmListingValue, feeHOList, 'Listing', hirarki, seq);
+					/* 
 					INSERT INTO member_comm(mmcoListId, mmcoAgtyId, mmcoMmbsId, mmcoPercentage, mmcoMoneter,mmcoSequence,mmcoValue)
 					VALUES(listingId, 1, mmId1, mmPercentage1, mmMoneter1, 1, mmListingValue);
+					*/
 					
 					CALL `sp_office_fee_calculation`(closingId, listingId, sellFranchiseId, mmSellingValue, feeHOSell, 'Selling', hirarki, seq);
+					/*
 					INSERT INTO member_comm(mmcoListId, mmcoAgtyId, mmcoMmbsId, mmcoPercentage, mmcoMoneter,mmcoSequence,mmcoValue)
 					VALUES(listingId, 1, mmId2, mmPercentage2, mmMoneter2, 1, mmSellingValue);
+					*/
+					
+
+					/* START TAMBAH MA OFF FEE */
+					CALL `sp_membership_franchise_fee_calculation`(mmId1, closingId, listingId, listFranchiseId, maListingValue, feeMAList, 'Listing', hirarki, seq);
+					INSERT INTO member_comm(mmcoListId, mmcoAgtyId, mmcoMmbsId, mmcoPercentage, mmcoMoneter,mmcoSequence,mmcoValue)
+					VALUES(listingId, 1, mmId1, mmPercentage1, mmMoneter1, 1, maListingValue);
+
+					CALL `sp_membership_franchise_fee_calculation`(mmId2, closingId, listingId, sellFranchiseId, maSellingValue, feeMASell, 'Selling', hirarki, seq);
+					INSERT INTO member_comm(mmcoListId, mmcoAgtyId, mmcoMmbsId, mmcoPercentage, mmcoMoneter,mmcoSequence,mmcoValue)
+					VALUES(listingId, 1, mmId2, mmPercentage2, mmMoneter2, 1, maSellingValue);
+					
+					/* END TAMBAH MA OFF FEE */
+					
 					
 				END IF;
 				
@@ -375,20 +475,17 @@ SELECT cclhId FROM calculation WHERE cclhListId = listingId ORDER BY cclhId DESC
 					END LOOP cobroking_start_loop;
 					CLOSE cobroking_comm_cursor;
 					END BLOCK99;
-
-									
 					
 				END IF;
-				
-				
 	
 				/*
 				SAMPAI SINI
 
 				*/
 				
-			/* ILANGIN DULU
-			
+			/* 
+				ILANGIN DULU
+				
 				CALL `sp_office_fee_calculation`(closingId, listingId, listFranchiseId, mmListingValue, feeHOList, 'Listing', hirarki, seq);
 				INSERT INTO member_comm(mmcoListId, mmcoAgtyId, mmcoMmbsId, mmcoPercentage, mmcoMoneter,mmcoSequence,mmcoValue)
 				VALUES(listingId, 1, mmId1, mmPercentage1, mmMoneter1, 1, mmListingValue);
@@ -403,23 +500,40 @@ SELECT cclhId FROM calculation WHERE cclhListId = listingId ORDER BY cclhId DESC
 				SELECT frofCompId FROM franchise_office WHERE frofId = listFranchiseId INTO headId;
 				SELECT compName FROM company WHERE compId = headId INTO headName;
 				 	
-				
+				/*	SEBELUM FEE MA OFFICE
 				SET sisaSelling = mmSellingValue;
 				SET sisaListing = mmListingValue;
+				*/
 
 				SET seq = seq + 1;
-
 				
 				INSERT INTO calculation_detail(ccldSisi, ccldHO, ccldCclhId, ccldName, ccldValue, ccldMinus, ccldFromApi, ccldSequence, ccldCreatedTime) 
 				VALUES ("Pay",headId, closingId, CONCAT('Payable to ',headName), ABS(feeHOSell+feeHOList), 2, 'api/franchisefee', seq, NOW());
 
-			END BLOCK3;	
 
+				/* START TAMBAH MA OFF FEE */
+				
+				
+				SET sisaSelling = maSellingValue;
+				SET sisaListing = maListingValue;
+				
+				
+				INSERT INTO calculation_detail(ccldSisi, ccldFO, ccldCclhId, ccldName, ccldValue, ccldMinus, ccldFromApi, ccldSequence, ccldCreatedTime) 
+				VALUES ("Office", listFranchiseId, closingId, CONCAT('Payable to Listing Office'), ABS(feeMAList), 3, '', seq, NOW());
+
+				INSERT INTO calculation_detail(ccldSisi, ccldFO, ccldCclhId, ccldName, ccldValue, ccldMinus, ccldFromApi, ccldSequence, ccldCreatedTime) 
+				VALUES ("Office", sellFranchiseId, closingId, CONCAT('Payable to Selling Office'), ABS(feeMASell), 3, '', seq, NOW());
+				/* END TAMBAH MA OFF FEE */
+				
+
+			END BLOCK3;
+			
 			SET seq = seq + 1;
-					
+			
 			INSERT INTO calculation_detail(ccldSisi,ccldFO, ccldCclhId, ccldName, ccldValue, ccldMinus, ccldFromApi, ccldSequence, ccldCreatedTime) 
 			VALUES ("Komisi", listFranchiseId, closingId, CONCAT('Komisi yang diperhitungkan'), sisaListing+sisaSelling, 0, 'api/franchisefee', seq, NOW());
-		
+
+	
 	END IF; 
 	
 	CALL `sp_temp_member_commission`(listingId, 2);
