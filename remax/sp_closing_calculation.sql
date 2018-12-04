@@ -201,6 +201,10 @@ BEGIN
 				/* START TAMBAH MA OFF FEE */
 				DECLARE maListingValue DOUBLE DEFAULT 0; 
 				DECLARE maSellingValue DOUBLE DEFAULT 0; 
+				
+				DECLARE allFeeListingValue DOUBLE DEFAULT 0; 
+				DECLARE allFeeSellingValue DOUBLE DEFAULT 0; 
+				
 				/* END TAMBAH MA OFF FEE */
 				
 				
@@ -221,6 +225,10 @@ BEGIN
 				/* START TAMBAH MA OFF FEE */
 				SET maListingValue = mmListingValue; 
 				SET maSellingValue = mmSellingValue;
+				SET allFeeListingValue = mmListingValue;
+				SET allFeeSellingValue = mmSellingValue;
+				
+				
 				/* END TAMBAH MA OFF FEE */
 				
 
@@ -237,6 +245,12 @@ BEGIN
 				
 
 				/* START TAMBAH MA OFF FEE */
+				
+				SET allFeeListingValue = allFeeListingValue - mmListingValue;
+				SET allFeeSellingValue = allFeeSellingValue - mmSellingValue;
+				
+				
+				
 				CALL `sp_membership_franchise_fee_calculation`(agentId, closingId, listingId, listFranchiseId, maListingValue, feeMAList, 'Listing', hirarki, seq);
 				INSERT INTO member_comm(mmcoListId, mmcoAgtyId, mmcoMmbsId, mmcoPercentage, mmcoMoneter,mmcoSequence,mmcoValue)
 				VALUES(listingId, 1, agentId, 50, 0, 1, maListingValue);
@@ -270,6 +284,15 @@ BEGIN
 				SET sisaListing = maListingValue;
 				
 				
+				INSERT INTO calculation_detail(	ccldGroup, ccldSisi, ccldFO, ccldCclhId, ccldName, ccldValue, ccldMinus, ccldFromApi, ccldSequence, ccldCreatedTime) 
+				VALUES ("M1","Listing", listFranchiseId, closingId, "Pendapatan Lain Lian", feeMAList - allFeeListingValue, 3, '', seq, NOW());
+				
+				INSERT INTO calculation_detail(	ccldGroup, ccldSisi, ccldFO, ccldCclhId, ccldName, ccldValue, ccldMinus, ccldFromApi, ccldSequence, ccldCreatedTime) 
+				VALUES ("M1","Selling", sellFranchiseId, closingId, "Pendapatan Lain Lian", feeMASell - allFeeSellingValue, 3, '', seq, NOW());
+				
+				
+				
+				
 				INSERT INTO calculation_detail(ccldSisi, ccldFO, ccldCclhId, ccldName, ccldValue, ccldMinus, ccldFromApi, ccldSequence, ccldCreatedTime) 
 				VALUES ("Office", listFranchiseId, closingId, CONCAT('Payable to Listing Office'), ABS(feeMAList), 3, '', seq, NOW());
 
@@ -300,6 +323,9 @@ BEGIN
 				/* START TAMBAH MA OFF FEE */
 				DECLARE maListingValue DOUBLE DEFAULT 0; 
 				DECLARE maSellingValue DOUBLE DEFAULT 0; 
+				
+				DECLARE allFeeListingValue DOUBLE DEFAULT 0; 
+				DECLARE allFeeSellingValue DOUBLE DEFAULT 0; 
 				/* END TAMBAH MA OFF FEE */
 				
 				
@@ -364,6 +390,10 @@ BEGIN
 				/* START TAMBAH MA OFF FEE */
 				SET maListingValue = mmListingValue; 
 				SET maSellingValue = mmSellingValue;
+				
+				
+				SET allFeeListingValue = mmListingValue;
+				SET allFeeSellingValue = mmSellingValue;
 				/* END TAMBAH MA OFF FEE */
 				
 				IF multiCobrokingStatus = 0 THEN
@@ -384,6 +414,13 @@ BEGIN
 					
 
 					/* START TAMBAH MA OFF FEE */
+					
+					
+					
+					SET allFeeListingValue = allFeeListingValue - mmListingValue;
+					SET allFeeSellingValue = allFeeSellingValue - mmSellingValue;
+					
+					
 					CALL `sp_membership_franchise_fee_calculation`(mmId1, closingId, listingId, listFranchiseId, maListingValue, feeMAList, 'Listing', hirarki, seq);
 					INSERT INTO member_comm(mmcoListId, mmcoAgtyId, mmcoMmbsId, mmcoPercentage, mmcoMoneter,mmcoSequence,mmcoValue)
 					VALUES(listingId, 1, mmId1, mmPercentage1, mmMoneter1, 1, maListingValue);
@@ -516,6 +553,15 @@ BEGIN
 				
 				SET sisaSelling = maSellingValue;
 				SET sisaListing = maListingValue;
+				
+				
+						
+				INSERT INTO calculation_detail(	ccldGroup, ccldSisi, ccldFO, ccldCclhId, ccldName, ccldValue, ccldMinus, ccldFromApi, ccldSequence, ccldCreatedTime) 
+				VALUES ("M1","Listing", listFranchiseId, closingId, "Pendapatan Lain Lian", feeMAList - allFeeListingValue, 3, '', seq, NOW());
+				
+				INSERT INTO calculation_detail(	ccldGroup, ccldSisi, ccldFO, ccldCclhId, ccldName, ccldValue, ccldMinus, ccldFromApi, ccldSequence, ccldCreatedTime) 
+				VALUES ("M1","Selling", sellFranchiseId, closingId, "Pendapatan Lain Lian", feeMASell - allFeeSellingValue, 3, '', seq, NOW());
+				
 				
 				
 				INSERT INTO calculation_detail(ccldSisi, ccldFO, ccldCclhId, ccldName, ccldValue, ccldMinus, ccldFromApi, ccldSequence, ccldCreatedTime) 
